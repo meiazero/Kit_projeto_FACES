@@ -1,123 +1,92 @@
-function [STATS TX_OK W] = pslog(D, Nr, Ptrain)
+function [STATS TX_OK W] = pslog(D, Nr, Ptrain, config)
+  if nargin < 4, config = struct(); end
+
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
-
   epsn = 1e-8;
+
+  % defaults
+  if ~isfield(config,'normalization'), config.normalization = 'zscore'; end
+  if ~isfield(config,'opt_variant'), config.opt_variant = 'gd'; end
+  if ~isfield(config,'eta'), config.eta = 0.01; end
+  if ~isfield(config,'epochs'), config.epochs = 200; end
+  if ~isfield(config,'mu'), config.mu = 0.9; end
+  if ~isfield(config,'rho'), config.rho = 0.9; end
+  if ~isfield(config,'eps_opt'), config.eps_opt = 1e-8; end
 
   for r=1:Nr
     idx = randperm(N);
     Dsh = D(idx,:);
     Ntrain = round(Ptrain/100 * N);
     Train = Dsh(1:Ntrain,:);
-    Test = Dsh(Ntrain+1:end,:);
+    Test  = Dsh(Ntrain+1:end,:);
 
     Xtrain_raw = Train(:,1:p);
     Xtest_raw  = Test(:,1:p);
 
-    % -----------------------------
-    % Normalização (descomente uma)
-    % -----------------------------
-    % Z-score (recomendado)
-    m = mean(Xtrain_raw, 1);
-    s = std(Xtrain_raw, 0, 1);
-    s(s<epsn)=1;
-    Xtrain = (Xtrain_raw - m)./s;
-    Xtest  = (Xtest_raw - m)./s;
-
-    % MinMax [0,+1]
-    % mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1);
-    % rng = mx - mn; rng(rng<epsn)=1;
-    % Xtrain = (Xtrain_raw - mn)./rng;
-    % Xtest  = (Xtest_raw - mn)./rng;
-
-    % MinMax [-1,+1]
-    % mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1);
-    % rng = mx - mn; rng(rng<epsn)=1;
-    % Xtrain = 2*((Xtrain_raw - mn)./rng) - 1;
-    % Xtest  = 2*((Xtest_raw - mn)./rng) - 1;
-
-    % Sem normalização
-    % Xtrain = Xtrain_raw;
-    % Xtest  = Xtest_raw;
-
-    % -----------------------------
-    % One-hot
-    % -----------------------------
-    Ytrain_oh = zeros(Ntrain, K);
-    for i=1:Ntrain
-      Ytrain_oh(i, Train(i,end)) = 1;
+    % Normalizacao
+    switch config.normalization
+      case 'zscore'
+        m = mean(Xtrain_raw,1); s = std(Xtrain_raw,0,1); s(s<epsn)=1;
+        Xtrain = (Xtrain_raw - m) ./ s; Xtest = (Xtest_raw - m) ./ s;
+      case 'minmax01'
+        mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1); rng = mx - mn; rng(rng<epsn)=1;
+        Xtrain = (Xtrain_raw - mn) ./ rng; Xtest = (Xtest_raw - mn) ./ rng;
+      case 'minmax11'
+        mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1); rng = mx - mn; rng(rng<epsn)=1;
+        Xtrain = 2*((Xtrain_raw - mn)./rng)-1; Xtest = 2*((Xtest_raw - mn)./rng)-1;
+      case 'none'
+        Xtrain = Xtrain_raw; Xtest = Xtest_raw;
+      otherwise
+        Xtrain = (Xtrain_raw - mean(Xtrain_raw,1)) ./ max(std(Xtrain_raw,0,1), epsn);
+        Xtest  = (Xtest_raw - mean(Xtrain_raw,1)) ./ max(std(Xtrain_raw,0,1), epsn);
     end
 
-    % -----------------------------
-    % Inicialização W (pesos)
-    % -----------------------------
-    % W = randn(p+1, K) * 0.1;           % alternativa simples
-    W = randn(p+1, K) * sqrt(2/(p+K));  % inicialização razoável (similar Glorot)
+    % One-hot
+    Ytrain_oh = zeros(Ntrain, K);
+    for i=1:Ntrain, Ytrain_oh(i, Train(i,end)) = 1; end
 
-    Xtrain_b = [ones(Ntrain,1) Xtrain];
+    Xb = [ones(Ntrain,1) Xtrain];
+    % Inicializacao (Glorot-like)
+    W = randn(p+1, K) * sqrt(2/(p+K));
 
-    % -----------------------------
-    % Hiperparâmetros (descomente/ajuste)
-    % -----------------------------
-    eta = 0.01;      % taxa de aprendizado
-    epochs = 200;    % épocas
-    % variantes de otimizador: 'gd' (padrão), 'momentum', 'nesterov', 'rmsprop'
-    opt_variant = 'gd';
+    % estados otimizadores
+    V = zeros(size(W));
+    S = zeros(size(W));
 
-    % Parâmetros de momentum / RMSProp (se usar)
-    mu = 0.9;
-    rho = 0.9;
-    eps_opt = 1e-8;
+    % treino
+    for e=1:config.epochs
+      Z = Xb * W;
+      P = softmax_rows(Z);
+      G = (Xb' * (P - Ytrain_oh)) / Ntrain;
 
-    % Estados para otimizadores (usados se descomentados)
-    V = zeros(size(W));  % momentum/nesterov
-    S = zeros(size(W));  % rmsprop cache
-
-    % -----------------------------
-    % Loop de treinamento (batch GD)
-    % -----------------------------
-    for e=1:epochs
-      Z = Xtrain_b * W;          % (Ntrain x K)
-      P = softmax_rows(Z);       % probabilidades (Ntrain x K)
-
-      % Gradiente (média por amostra)
-      G = (Xtrain_b' * (P - Ytrain_oh)) / Ntrain;
-
-      switch opt_variant
+      switch config.opt_variant
         case 'gd'
-          W = W - eta * G;
-
+          W = W - config.eta * G;
         case 'momentum'
-          V = mu * V + eta * G;
+          V = config.mu * V + config.eta * G;
           W = W - V;
-
         case 'nesterov'
-          % Nesterov (aprox)
-          W_look = W - mu * V;
-          P_la = softmax_rows(Xtrain_b * W_look);
-          G_la = (Xtrain_b' * (P_la - Ytrain_oh)) / Ntrain;
-          V = mu * V + eta * G_la;
+          W_look = W - config.mu * V;
+          P_la = softmax_rows(Xb * W_look);
+          G_la = (Xb' * (P_la - Ytrain_oh)) / Ntrain;
+          V = config.mu * V + config.eta * G_la;
           W = W - V;
-
         case 'rmsprop'
-          S = rho * S + (1 - rho) * (G.^2);
-          W = W - (eta ./ sqrt(S + eps_opt)) .* G;
-
+          S = config.rho * S + (1 - config.rho) * (G.^2);
+          W = W - (config.eta ./ sqrt(S + config.eps_opt)) .* G;
         otherwise
-          W = W - eta * G;
+          W = W - config.eta * G;
       end
     end
 
-    % -----------------------------
-    % Teste
-    % -----------------------------
+    % teste
     Xtest_b = [ones(size(Xtest,1),1) Xtest];
     Ztest = Xtest_b * W;
     [~, pred] = max(Ztest, [], 2);
-    correct = sum(pred == Test(:,end));
-    TX_OK(r) = correct / size(Test,1) * 100;
+    TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
