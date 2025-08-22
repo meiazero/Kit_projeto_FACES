@@ -1,8 +1,8 @@
 function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain)
-  [N, p1] = size(D);
-  p = p1 - 1;
-  K = max(D(:,end));
+  [N, p1] = size(D); p = p1 - 1; K = max(D(:,end));
   TX_OK = zeros(Nr,1);
+
+  epsn = 1e-8;
 
   for r=1:Nr
     idx = randperm(N);
@@ -12,54 +12,51 @@ function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain)
     Test = Dsh(Ntrain+1:end,:);
 
     Xtrain_raw = Train(:,1:p);
-    m = mean(Xtrain_raw);
-    s = std(Xtrain_raw);
+    Xtest_raw = Test(:,1:p);
+
+    % Sem normalizacao
+    % Xtrain = Xtrain_raw;
+    % Xtest  = Xtest_raw;
 
     % Normalize features (z-score)
-    Xtrain_norm = (Xtrain_raw - m) ./ s;
-    Xtrain = [ones(Ntrain,1) Xtrain_norm];
-
-    % Normalize features (mudanca de escala [0,+1])
-    % Xtrain = (Xtrain_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw));
-    % Xtest = (Xtest_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw));
+    m = mean(Xtrain_raw, 1);
+    s = std(Xtrain_raw, 0, 1);
+    s(s<epsn)=1;
+    Xtrain = (Xtrain_raw - m)./(s);
+    Xtest  = (Xtest_raw - m)./(s);
 
     % Normalize features (mudanca de escala [-1,+1])
-    % Xtrain = 2 * (Xtrain_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw)) - 1;
-    % Xtest = 2 * (Xtest_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw)) - 1;
+    % mn = min(Xtrain_raw,[],1);
+    % mx = max(Xtrain_raw,[],1);
+    % rng = mx - mn;
+    % rng(rng<epsn)=1;
+    % Xtrain = (Xtrain_raw - mn)./rng;
+    % Xtest  = (Xtest_raw - mn)./rng;
 
-    % One-hot encode labels
+    % Normalize features (mudanca de escala [0,+1])
+    % mn = min(Xtrain_raw,[],1);
+    % mx = max(Xtrain_raw,[],1);
+    % rng = mx - mn;
+    % rng(rng<epsn)=1;
+    % Xtrain = 2*((Xtrain_raw - mn)./rng) - 1;
+    % Xtest  = 2*((Xtest_raw - mn)./rng) - 1;
+
+    % One-hot
     Ytrain = zeros(Ntrain, K);
     for i=1:Ntrain
       Ytrain(i, Train(i,end)) = 1;
     end
 
     % Compute weights using pseudoinverse
-    W = pinv(Xtrain) * Ytrain;
-    Xtest_raw = Test(:,1:p);
-    Xtest_norm = (Xtest_raw - m) ./ s;
-    Xtest = [ones(size(Test,1),1) Xtest_norm];
-    Ypred = Xtest * W;
+    Xtrain_b = [ones(Ntrain,1) Xtrain];
+    W = pinv(Xtrain_b) * Ytrain;
+
+    Xtest_b = [ones(size(Xtest,1),1) Xtest];
+    Ypred = Xtest_b * W;
 
     [~, pred] = max(Ypred, [], 2);
     correct = sum(pred == Test(:,end));
     TX_OK(r) = correct / size(Test,1) * 100;
-
-    % Log progress
-    current_mean = mean(TX_OK(1:r));
-    current_std = std(TX_OK(1:r));
-    % disp(["<MQ, round = " num2str(r) "/" num2str(Nr) ", mean acc = " num2str(current_mean) ", std acc = " num2str(current_std) ">"]);
   end
-
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-
-  % Plot accuracy over rounds
-  % figure;
-  % plot(1:Nr, TX_OK, 'b-o', 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', 'r');
-  % title('Accuracy over Rounds for MQ', 'FontSize', 14, 'FontWeight', 'bold');
-  % xlabel('Round Number', 'FontSize', 12);
-  % ylabel('Test Accuracy (%)', 'FontSize', 12);
-  % grid on;
-  % set(gca, 'GridLineStyle', '--', 'GridAlpha', 0.5);
-  % print -dpng 'mq_accuracy_plot.png';
-
 endfunction

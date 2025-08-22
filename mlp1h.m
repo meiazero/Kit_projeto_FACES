@@ -5,6 +5,8 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain)
   H = 20;
   TX_OK = zeros(Nr,1);
 
+  epsn = 1e-3;
+
   for r=1:Nr
     idx = randperm(N);
     Dsh = D(idx,:);
@@ -13,136 +15,178 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain)
     Test = Dsh(Ntrain+1:end,:);
 
     Xtrain_raw = Train(:,1:p);
-    m = mean(Xtrain_raw);
-    s = std(Xtrain_raw);
+    Xtest_raw  = Test(:,1:p);
 
-    % Normalize features (z-score)
-    Xtest_raw = Test(:,1:p);
-    Xtrain = (Xtrain_raw - m) ./ s;
-    Xtest = (Xtest_raw - m) ./ s;
+    % -----------------------------
+    % Normalização (descomente uma)
+    % -----------------------------
+    % Z-score (padrão recomendado)
+    m = mean(Xtrain_raw, 1);
+    s = std(Xtrain_raw, 0, 1);
+    s(s<epsn)=1;
+    Xtrain = (Xtrain_raw - m)./s;
+    Xtest  = (Xtest_raw - m)./s;
 
-    % Normalize features (mudanca de escala [0,+1])
-    % Xtrain = (Xtrain_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw));
-    % Xtest = (Xtest_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw));
+    % MinMax [0,+1]
+    % mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1);
+    % rng = mx - mn; rng(rng<epsn)=1;
+    % Xtrain = (Xtrain_raw - mn)./rng;
+    % Xtest  = (Xtest_raw - mn)./rng;
 
-    % Normalize features (mudanca de escala [-1,+1])
-    % Xtrain = 2 * (Xtrain_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw)) - 1;
-    % Xtest = 2 * (Xtest_raw - min(Xtrain_raw)) ./ (max(Xtrain_raw) - min(Xtrain_raw)) - 1;
+    % MinMax [-1,+1]
+    % mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1);
+    % rng = mx - mn; rng(rng<epsn)=1;
+    % Xtrain = 2*((Xtrain_raw - mn)./rng) - 1;
+    % Xtest  = 2*((Xtest_raw - mn)./rng) - 1;
 
-    % One-hot encode labels
+    % Sem normalização
+    % Xtrain = Xtrain_raw;
+    % Xtest  = Xtest_raw;
+
+    % -----------------------------
+    % One-hot
+    % -----------------------------
     Ytrain_oh = zeros(Ntrain, K);
     for i=1:Ntrain
       Ytrain_oh(i, Train(i,end)) = 1;
     end
 
-    % Initialize weights (He initialization for sigmoid)
-    W1 = randn(p, H) * sqrt(2/p);
+    % -----------------------------
+    % Configurações (descomente para testar)
+    % -----------------------------
+    % hidden activation: 'sigmoid' | 'tanh' | 'relu' | 'leakyrelu'
+    hidden_act = 'sigmoid';
+
+    % learning options
+    eta = 0.01;
+    epochs = 200;
+    opt_variant = 'gd';  % 'gd' | 'momentum' | 'nesterov' | 'rmsprop'
+
+    % momentum / rmsprop params
+    mu = 0.9; rho = 0.9; eps_opt = 1e-8; leaky_alpha = 0.01;
+
+    % -----------------------------
+    % Inicialização de pesos (escolha conforme ativação)
+    % -----------------------------
+    if any(strcmp(hidden_act, {'relu','leakyrelu','relu6'}))
+      W1 = randn(p, H) * sqrt(2/p);   % He init
+    else
+      W1 = randn(p, H) * sqrt(1/p);   % Glorot simples
+    end
     b1 = zeros(1, H);
-    W2 = randn(H, K) * sqrt(2/H);
+
+    W2 = randn(H, K) * sqrt(1/H);
     b2 = zeros(1, K);
-    eta = 0.01; epochs = 200;
-    losses = zeros(epochs,1);
 
-    % Training loop
+    % estados para otimizadores
+    V1 = zeros(size(W1)); V2 = zeros(size(W2));
+    S1 = zeros(size(W1)); S2 = zeros(size(W2));
+
+    % -----------------------------
+    % Treinamento
+    % -----------------------------
     for e=1:epochs
-      Z1 = Xtrain * W1 + b1;
-
-      % Sigmoid activation
-      A1 = 1 ./ (1 + exp(-Z1));
-
-      % Tanh activation
-      % A1 = tanh(Z1);
-
-      % ReLU activation
-      % A1 = max(Z1, 0);
-
-      % Leaky ReLU activation
-      % A1 = max(Z1, 0) + 0.01 * Z1;
-
-      % ReLU6 activation
-      % A1 = min(max(Z1, 0), 6);
+      % Forward
+      Z1 = Xtrain * W1 + b1;  % (Ntrain x H)
+      switch hidden_act
+        case 'sigmoid'
+          A1 = 1 ./ (1 + exp(-Z1));
+          dphi = @(A,Z) A .* (1 - A);
+        case 'tanh'
+          A1 = tanh(Z1);
+          dphi = @(A,Z) 1 - A.^2;
+        case 'relu'
+          A1 = max(Z1, 0);
+          dphi = @(A,Z) (Z > 0);
+        case 'leakyrelu'
+          A1 = max(Z1,0) + leaky_alpha * min(Z1,0);
+          dphi = @(A,Z) (Z > 0) + leaky_alpha * (Z <= 0);
+        case 'relu6'
+          A1 = min(max(Z1, 0), 6);
+          dphi = @(A,Z) min(max(Z,0), 6);
+        otherwise
+          A1 = 1 ./ (1 + exp(-Z1));
+          dphi = @(A,Z) A .* (1 - A);
+      end
 
       Z2 = A1 * W2 + b2;
-      A2 = softmax(Z2')';
+      A2 = softmax_rows(Z2);
 
-      % Compute cross-entropy loss
-      loss = -sum(sum(Ytrain_oh .* log(A2 + 1e-10))) / Ntrain;
-      losses(e) = loss;
+      % Gradientes (média)
+      dZ2 = (A2 - Ytrain_oh) / Ntrain;
+      dW2 = A1' * dZ2; db2 = sum(dZ2,1);
 
-      % Backpropagation
-      dZ2 = A2 - Ytrain_oh;
-      dW2 = A1' * dZ2 / Ntrain;
-      db2 = sum(dZ2) / Ntrain;
-      dA1 = dZ2 * W2';
+      dZ1 = (dZ2 * W2') .* dphi(A1, Z1);
+      dW1 = Xtrain' * dZ1; db1 = sum(dZ1,1);
 
-      % Sigmoid derivative
-      dZ1 = dA1 .* A1 .* (1 - A1);
+      % Atualização (variante escolhida)
+      switch opt_variant
+        case 'gd'
+          W1 = W1 - eta * dW1; b1 = b1 - eta * db1;
+          W2 = W2 - eta * dW2; b2 = b2 - eta * db2;
 
-      % Tanh derivative
-      % dZ1 = dA1 .* (1 - A1.^2);
+        case 'momentum'
+          V1 = mu * V1 + eta * dW1; V2 = mu * V2 + eta * dW2;
+          W1 = W1 - V1; W2 = W2 - V2;
+          b1 = b1 - eta * db1; b2 = b2 - eta * db2;
 
-      % ReLU derivative
-      % dZ1 = dA1 .* (A1 > 0);
+        case 'nesterov'
+          W1_look = W1 - mu * V1; W2_look = W2 - mu * V2;
+          % forward lookahead (aprox.)
+          Z1_la = Xtrain * W1_look + b1;
+          switch hidden_act
+            case 'sigmoid', A1_la = 1./(1+exp(-Z1_la));
+            case 'tanh',    A1_la = tanh(Z1_la);
+            case 'relu',    A1_la = max(Z1_la,0);
+            case 'leakyrelu',A1_la = max(Z1_la,0)+leaky_alpha*min(Z1_la,0);
+            case 'relu6',  A1_la = min(max(Z1_la,0),6);
+          end
+          Z2_la = A1_la * W2_look + b2; A2_la = softmax_rows(Z2_la);
+          dZ2_la = (A2_la - Ytrain_oh) / Ntrain;
+          dW2_la = A1_la' * dZ2_la; db2_la = sum(dZ2_la,1);
+          dZ1_la = (dZ2_la * W2_look') .* dphi(A1_la, Z1_la);
+          dW1_la = Xtrain' * dZ1_la; db1_la = sum(dZ1_la,1);
 
-      % Leaky ReLU derivative
-      % dZ1 = dA1 .* (A1 > 0) + dA1 .* (A1 <= 0) .* 0.01;
+          V1 = mu * V1 + eta * dW1_la; V2 = mu * V2 + eta * dW2_la;
+          W1 = W1 - V1; W2 = W2 - V2;
+          b1 = b1 - eta * db1_la; b2 = b2 - eta * db2_la;
 
-      % ReLU6 derivative
-      % dZ1 = dA1 .* (A1 > 0) .* (A1 < 6);
+        case 'rmsprop'
+          S1 = rho * S1 + (1-rho) * (dW1.^2);
+          S2 = rho * S2 + (1-rho) * (dW2.^2);
+          W1 = W1 - (eta ./ sqrt(S1 + eps_opt)) .* dW1;
+          W2 = W2 - (eta ./ sqrt(S2 + eps_opt)) .* dW2;
+          b1 = b1 - eta * db1; b2 = b2 - eta * db2;
 
-      dW1 = Xtrain' * dZ1 / Ntrain;
-      db1 = sum(dZ1) / Ntrain;
-      W1 = W1 - eta * dW1;
-      b1 = b1 - eta * db1;
-      W2 = W2 - eta * dW2;
-      b2 = b2 - eta * db2;
+        otherwise
+          W1 = W1 - eta * dW1; b1 = b1 - eta * db1;
+          W2 = W2 - eta * dW2; b2 = b2 - eta * db2;
+      end
+    end % epochs
 
-      % Log every 10 epochs
-      % if mod(e, 10) == 0
-      %   disp(["<MLP-1H, round = " num2str(r) ", epoch = " num2str(e) "/" num2str(epochs) ", loss = " num2str(loss) ">"]);
-      % end
+    % -----------------------------
+    % Teste
+    % -----------------------------
+    Z1t = Xtest * W1 + b1;
+    switch hidden_act
+      case 'sigmoid', A1t = 1./(1+exp(-Z1t));
+      case 'tanh',    A1t = tanh(Z1t);
+      case 'relu',    A1t = max(Z1t,0);
+      case 'leakyrelu',A1t = max(Z1t,0)+leaky_alpha*min(Z1t,0);
+      case 'relu6',  A1t = min(max(Z1t,0),6);
+      otherwise, A1t = 1./(1+exp(-Z1t));
     end
-
-    Z1_test = Xtest * W1 + b1;
-    A1_test = 1 ./ (1 + exp(-Z1_test));
-    Z2_test = A1_test * W2 + b2;
-    A2_test = softmax(Z2_test')';
-    [~, pred] = max(A2_test, [], 2);
-    correct = sum(pred == Test(:,end));
-    TX_OK(r) = correct / size(Test,1) * 100;
-
-    % Log progress
-    current_mean = mean(TX_OK(1:r));
-    current_std = std(TX_OK(1:r));
-    % disp(["<MLP-1H, round = " num2str(r) "/" num2str(Nr) ", mean acc = " num2str(current_mean) ", std acc = " num2str(current_std) ", final loss = " num2str(losses(end)) ">"]);
-
-    % Plot loss for this round if last
-    % if r == Nr
-    %   figure;
-    %   plot(1:epochs, losses, 'g-', 'LineWidth', 2);
-    %   title('Training Loss over Epochs for MLP-1H (Last Round)', 'FontSize', 14, 'FontWeight', 'bold');
-    %   xlabel('Epoch', 'FontSize', 12);
-    %   ylabel('Cross-Entropy Loss', 'FontSize', 12);
-    %   grid on;
-    %   set(gca, 'GridLineStyle', '--', 'GridAlpha', 0.5);
-    %   print -dpng 'mlp1h_loss_plot.png';
-    % end
-  end
+    Z2t = A1t * W2 + b2;
+    A2t = softmax_rows(Z2t);
+    [~, pred] = max(A2t, [], 2);
+    TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
+  end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-
-  % Plot accuracy over rounds
-  % figure;
-  % plot(1:Nr, TX_OK, 'b-o', 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', 'r');
-  % title('Accuracy over Rounds for MLP-1H', 'FontSize', 14, 'FontWeight', 'bold');
-  % xlabel('Round Number', 'FontSize', 12);
-  % ylabel('Test Accuracy (%)', 'FontSize', 12);
-  % grid on;
-  % set(gca, 'GridLineStyle', '--', 'GridAlpha', 0.5);
-  % print -dpng 'mlp1h_accuracy_plot.png';
 endfunction
 
-function s = softmax(x)
-  ex = exp(x - max(x,[],2));
-  s = ex ./ sum(ex,2);
+function S = softmax_rows(Z)
+  Zs = Z - max(Z,[],2);
+  EZ = exp(Zs);
+  S = EZ ./ sum(EZ,2);
 endfunction
