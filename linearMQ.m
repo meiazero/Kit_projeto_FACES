@@ -58,4 +58,7 @@ function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain, config)
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+
+  fprintf('linearMQ: normalization: %s\n', config.normalization);
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
 endfunction

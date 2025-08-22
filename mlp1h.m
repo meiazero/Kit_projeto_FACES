@@ -83,7 +83,7 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
       end
 
       Z2 = A1 * W2 + b2;
-      A2 = softmax_rows(Z2);
+      A2 = softmax(Z2);
 
       dZ2 = (A2 - Ytrain_oh) / Ntrain;
       dW2 = A1' * dZ2; db2 = sum(dZ2,1);
@@ -110,7 +110,7 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
             case 'leakyrelu', A1_la = max(Z1_la,0) + config.leaky_alpha * min(Z1_la,0);
             otherwise, A1_la = 1./(1+exp(-Z1_la));
           end
-          Z2_la = A1_la * W2_look + b2; A2_la = softmax_rows(Z2_la);
+          Z2_la = A1_la * W2_look + b2; A2_la = softmax(Z2_la);
           dZ2_la = (A2_la - Ytrain_oh) / Ntrain;
           dW2_la = A1_la' * dZ2_la; db2_la = sum(dZ2_la,1);
           dZ1_la = (dZ2_la * W2_look') .* dphi(A1_la, Z1_la);
@@ -141,15 +141,18 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
       otherwise, A1t = 1./(1+exp(-Z1t));
     end
     Z2t = A1t * W2 + b2;
-    A2t = softmax_rows(Z2t);
+    A2t = softmax(Z2t);
     [~, pred] = max(A2t, [], 2);
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
   end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+
+  fprintf('mlp1h: normalization: %s, hidden_act: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.hidden_act, config.opt_variant, config.eta, config.epochs);
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
 endfunction
 
-function S = softmax_rows(Z)
+function S = softmax(Z)
   Zs = Z - max(Z,[],2);
   EZ = exp(Zs);
   S = EZ ./ sum(EZ,2);

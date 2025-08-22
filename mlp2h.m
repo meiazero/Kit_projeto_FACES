@@ -72,23 +72,23 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
     % treino
     for e=1:config.epochs
       Z1 = Xtrain * W1 + b1;
-      A1 = act_forward(Z1, config.act1, config.leaky_alpha);
+      A1 = forward(Z1, config.act1, config.leaky_alpha);
 
       Z2 = A1 * W2 + b2;
-      A2 = act_forward(Z2, config.act2, config.leaky_alpha);
+      A2 = forward(Z2, config.act2, config.leaky_alpha);
 
       Z3 = A2 * W3 + b3;
-      A3 = softmax_rows(Z3);
+      A3 = softmax(Z3);
 
       dZ3 = (A3 - Ytrain_oh) / Ntrain;
       dW3 = A2' * dZ3; db3 = sum(dZ3,1);
 
       dA2 = dZ3 * W3';
-      dZ2 = dA2 .* act_backward(Z2, A2, config.act2, config.leaky_alpha);
+      dZ2 = dA2 .* backward(Z2, A2, config.act2, config.leaky_alpha);
       dW2 = A1' * dZ2; db2 = sum(dZ2,1);
 
       dA1 = dZ2 * W2';
-      dZ1 = dA1 .* act_backward(Z1, A1, config.act1, config.leaky_alpha);
+      dZ1 = dA1 .* backward(Z1, A1, config.act1, config.leaky_alpha);
       dW1 = Xtrain' * dZ1; db1 = sum(dZ1,1);
 
       switch config.opt_variant
@@ -102,17 +102,17 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
           b1 = b1 - config.eta * db1; b2 = b2 - config.eta * db2; b3 = b3 - config.eta * db3;
         case 'nesterov'
           W1_look = W1 - config.mu * V1; W2_look = W2 - config.mu * V2; W3_look = W3 - config.mu * V3;
-          Z1_la = Xtrain * W1_look + b1; A1_la = act_forward(Z1_la, config.act1, config.leaky_alpha);
-          Z2_la = A1_la * W2_look + b2; A2_la = act_forward(Z2_la, config.act2, config.leaky_alpha);
-          Z3_la = A2_la * W3_look + b3; A3_la = softmax_rows(Z3_la);
+          Z1_la = Xtrain * W1_look + b1; A1_la = forward(Z1_la, config.act1, config.leaky_alpha);
+          Z2_la = A1_la * W2_look + b2; A2_la = forward(Z2_la, config.act2, config.leaky_alpha);
+          Z3_la = A2_la * W3_look + b3; A3_la = softmax(Z3_la);
 
           dZ3_la = (A3_la - Ytrain_oh)/Ntrain;
           dW3_la = A2_la' * dZ3_la; db3_la = sum(dZ3_la,1);
           dA2_la = dZ3_la * W3_look';
-          dZ2_la = dA2_la .* act_backward(Z2_la, A2_la, config.act2, config.leaky_alpha);
+          dZ2_la = dA2_la .* backward(Z2_la, A2_la, config.act2, config.leaky_alpha);
           dW2_la = A1_la' * dZ2_la; db2_la = sum(dZ2_la,1);
           dA1_la = dZ2_la * W2_look';
-          dZ1_la = dA1_la .* act_backward(Z1_la, A1_la, config.act1, config.leaky_alpha);
+          dZ1_la = dA1_la .* backward(Z1_la, A1_la, config.act1, config.leaky_alpha);
           dW1_la = Xtrain' * dZ1_la; db1_la = sum(dZ1_la,1);
 
           V1 = config.mu * V1 + config.eta * dW1_la; V2 = config.mu * V2 + config.eta * dW2_la; V3 = config.mu * V3 + config.eta * dW3_la;
@@ -134,17 +134,20 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
     end % epochs
 
     % teste
-    A1t = act_forward(Xtest * W1 + b1, config.act1, config.leaky_alpha);
-    A2t = act_forward(A1t * W2 + b2, config.act2, config.leaky_alpha);
-    A3t = softmax_rows(A2t * W3 + b3);
+    A1t = forward(Xtest * W1 + b1, config.act1, config.leaky_alpha);
+    A2t = forward(A1t * W2 + b2, config.act2, config.leaky_alpha);
+    A3t = softmax(A2t * W3 + b3);
     [~, pred] = max(A3t, [], 2);
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
   end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+
+  fprintf('mlp2h: normalization: %s, act1: %s, act2: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.act1, config.act2, config.opt_variant, config.eta, config.epochs);
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
 endfunction
 
-function A = act_forward(Z, act, alpha)
+function A = forward(Z, act, alpha)
   switch act
     case 'sigmoid',    A = 1./(1+exp(-Z));
     case 'tanh',       A = tanh(Z);
@@ -154,7 +157,7 @@ function A = act_forward(Z, act, alpha)
   end
 endfunction
 
-function D = act_backward(Z, A, act, alpha)
+function D = backward(Z, A, act, alpha)
   switch act
     case 'sigmoid',    D = A .* (1 - A);
     case 'tanh',       D = 1 - A.^2;
@@ -164,7 +167,7 @@ function D = act_backward(Z, A, act, alpha)
   end
 endfunction
 
-function S = softmax_rows(Z)
+function S = softmax(Z)
   Zs = Z - max(Z,[],2);
   EZ = exp(Zs);
   S = EZ ./ sum(EZ,2);
