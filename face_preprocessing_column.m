@@ -53,11 +53,14 @@ for i=1:Nind,  % Indice para os individuos
 end
 
 %%%%%%%% APLICACAO DE PCA (PCACOV) %%%%%%%%%%%
-% [V L VEi]=pcacov(cov(X'));
-% q=25; Vq=V(:,1:q); Qq=Vq'; X=Qq*X;
-% VEq=cumsum(VEi); figure; plot(VEq,'r-','linewidth',3);
-% xlabel('Autovalor');
-% ylabel('Variancia explicada acumulada');
+[V L VEi]=pcacov(cov(X'));
+%q=52 % 98% de explicados
+q=52; Vq=V(:,1:q); Qq=Vq'; X=Qq*X;
+VEq=cumsum(VEi);
+figure;
+plot(VEq,'r-','linewidth',3);
+xlabel('Autovalor');
+ylabel('Variancia explicada acumulada');
 
 Z=[X;Y];  % Formato 01 vetor de atributos por coluna: DIM(Z) = (p+1)xN
 Z=Z';     % Formato 01 vetor de atributos por linha: DIM(Z) = Nx(p+1)
