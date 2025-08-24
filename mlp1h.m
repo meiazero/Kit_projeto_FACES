@@ -68,19 +68,7 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
     % treino
     for e=1:config.epochs
       Z1 = Xtrain * W1 + b1;
-      switch config.hidden_act
-        case 'sigmoid'
-          A1 = 1 ./ (1 + exp(-Z1)); dphi = @(A,Z) A .* (1-A);
-        case 'tanh'
-          A1 = tanh(Z1); dphi = @(A,Z) 1 - A.^2;
-        case 'relu'
-          A1 = max(Z1,0); dphi = @(A,Z) (Z > 0);
-        case 'leakyrelu'
-          A1 = max(Z1,0) + config.leaky_alpha * min(Z1,0);
-          dphi = @(A,Z) (Z > 0) + config.leaky_alpha * (Z <= 0);
-        otherwise
-          A1 = 1 ./ (1 + exp(-Z1)); dphi = @(A,Z) A .* (1-A);
-      end
+      A1 = forward(Z1, config.hidden_act, config.leaky_alpha);
 
       Z2 = A1 * W2 + b2;
       A2 = softmax(Z2);
@@ -103,14 +91,10 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
           W1_look = W1 - config.mu * V1; W2_look = W2 - config.mu * V2;
           % forward lookahead (aprox)
           Z1_la = Xtrain * W1_look + b1;
-          switch config.hidden_act
-            case 'sigmoid', A1_la = 1./(1+exp(-Z1_la));
-            case 'tanh',    A1_la = tanh(Z1_la);
-            case 'relu',    A1_la = max(Z1_la,0);
-            case 'leakyrelu', A1_la = max(Z1_la,0) + config.leaky_alpha * min(Z1_la,0);
-            otherwise, A1_la = 1./(1+exp(-Z1_la));
-          end
-          Z2_la = A1_la * W2_look + b2; A2_la = softmax(Z2_la);
+          A1_la = forward(Z1_la, config.hidden_act, config.leaky_alpha);
+          Z2_la = A1_la * W2_look + b2;
+          A2_la = softmax(Z2_la);
+
           dZ2_la = (A2_la - Ytrain_oh) / Ntrain;
           dW2_la = A1_la' * dZ2_la; db2_la = sum(dZ2_la,1);
           dZ1_la = (dZ2_la * W2_look') .* dphi(A1_la, Z1_la);
@@ -150,6 +134,27 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
 
   fprintf('mlp1h: normalization: %s, hidden_act: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.hidden_act, config.opt_variant, config.eta, config.epochs);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
+endfunction
+
+
+function A = forward(Z, act, alpha)
+  switch act
+    case 'sigmoid',    A = 1./(1+exp(-Z));
+    case 'tanh',       A = tanh(Z);
+    case 'relu',       A = max(Z,0);
+    case 'leakyrelu',  A = max(Z,0) + alpha*min(Z,0);
+    otherwise,         A = 1./(1+exp(-Z));
+  end
+endfunction
+
+function D = backward(Z, A, act, alpha)
+  switch act
+    case 'sigmoid',    D = A .* (1 - A);
+    case 'tanh',       D = 1 - A.^2;
+    case 'relu',       D = (Z > 0);
+    case 'leakyrelu',  D = (Z > 0) + alpha*(Z <= 0);
+    otherwise,         D = A .* (1 - A);
+  end
 endfunction
 
 function S = softmax(Z)
