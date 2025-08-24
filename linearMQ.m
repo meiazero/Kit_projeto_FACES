@@ -45,9 +45,9 @@ function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain, config)
     Ytrain = zeros(Ntrain, K);
     for i=1:Ntrain, Ytrain(i, Train(i,end)) = 1; end
 
-    % Pseudoinversa com bias
+    % Solve linear regression via least squares (with bias)
     Xtrain_b = [ones(Ntrain,1) Xtrain];
-    W = pinv(Xtrain_b) * Ytrain;
+    W = Xtrain_b \ Ytrain;
 
     Xtest_b = [ones(size(Xtest,1),1) Xtest];
     Ypred = Xtest_b * W;

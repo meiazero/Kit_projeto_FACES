@@ -76,7 +76,7 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
       dZ2 = (A2 - Ytrain_oh) / Ntrain;
       dW2 = A1' * dZ2; db2 = sum(dZ2,1);
 
-      dZ1 = (dZ2 * W2') .* dphi(A1, Z1);
+      dZ1 = (dZ2 * W2') .* backward(Z1, A1, config.hidden_act, config.leaky_alpha);
       dW1 = Xtrain' * dZ1; db1 = sum(dZ1,1);
 
       switch config.opt_variant
@@ -97,7 +97,7 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
 
           dZ2_la = (A2_la - Ytrain_oh) / Ntrain;
           dW2_la = A1_la' * dZ2_la; db2_la = sum(dZ2_la,1);
-          dZ1_la = (dZ2_la * W2_look') .* dphi(A1_la, Z1_la);
+          dZ1_la = (dZ2_la * W2_look') .* backward(Z1_la, A1_la, config.hidden_act, config.leaky_alpha);
           dW1_la = Xtrain' * dZ1_la; db1_la = sum(dZ1_la,1);
 
           V1 = config.mu * V1 + config.eta * dW1_la; V2 = config.mu * V2 + config.eta * dW2_la;
