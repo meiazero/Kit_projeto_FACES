@@ -1,5 +1,4 @@
 function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain, config)
-  % linearMQ com config opcional (struct)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
