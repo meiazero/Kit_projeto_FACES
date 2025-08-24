@@ -5,7 +5,7 @@ pkg load statistics;
 D=load('recfaces.dat');
 Nr = 50; Ptrain = 80;
 dimensao_str = '30x30';
-com_pca = 'sim';
+com_pca = 'nao';
 
 function compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, out_csv)
   % CSV
@@ -84,4 +84,4 @@ function compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, out_cs
 endfunction
 
 
-compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, 'resultados_todos_auto-v3.csv');
+compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, 'resultados_todos_auto-sem-pca.csv');
