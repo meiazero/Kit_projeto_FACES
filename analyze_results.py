@@ -25,8 +25,8 @@ from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 sns.set_theme(style='whitegrid', context='talk')
 
-INPUT = 'resultados_todos_auto-v3.csv'
-OUTDIR = 'analysis_report'
+INPUT = 'resultados_todos_auto-sem-pca.csv'
+OUTDIR = 'analysis_report-sem-pca-final'
 os.makedirs(OUTDIR, exist_ok=True)
 
 df = pd.read_csv(INPUT)
