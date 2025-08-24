@@ -1,7 +1,3 @@
-clear; clc;
-
-pkg load statistics;
-
 D=load('recfaces.dat');
 Nr = 50; Ptrain = 80;
 dimensao_str = '30x30';
@@ -16,12 +12,11 @@ function compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, out_cs
     fprintf(fid, 'modelo,dimensao,numero_treinamentos,tempo_execucao_em_segundos,media,minimo,maximo,mediana,desvio_padrao,com_pca,normalizacao,funcao_ativacao,optimizador,eta,epocas\n');
   end
 
-  % Configurações a varrer (edite aqui conforme desejar)
   normalizacoes = {'zscore','minmax11', 'minmax01', 'none'};           % reduzi por padrão; amplie se quiser
   ativacoes = {'sigmoid','tanh','relu', 'leakyrelu'};           % para MLPs
   otimizadores = {'gd','momentum','rmsprop', 'nesterov'};      % para pslog/mlp
-  etas = [0.01, 0.05];
-  epocas = 200;
+  etas = [0.001, 0.003, 0.005];
+  epocas = 100;
 
   for in = 1:length(normalizacoes)
     norm = normalizacoes{in};
@@ -78,10 +73,50 @@ function compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, out_cs
         end
       end
     end
+
+    % ---------------- k-Nearest Neighbors (kNN)
+    k_list = [1, 3, 5];
+    for ik = 1:length(k_list)
+      k = k_list(ik);
+      cfg_knn = struct('normalization', norm, 'k', k);
+      t0 = tic;
+      [STATS, TX_OK] = knn(D, Nr, Ptrain, cfg_knn);
+      tempo = toc(t0);
+      fprintf(fid, 'knn,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,na,na,%d,0\n', ...
+        dimensao_str, Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), ...
+        com_pca, norm, k);
+    end
+
+    % ---------------- Naive Bayes (Gaussian NB)
+    cfg_nb = struct('normalization', norm);
+    t0 = tic;
+    [STATS, TX_OK] = nb(D, Nr, Ptrain, cfg_nb);
+    tempo = toc(t0);
+    fprintf(fid, 'nb,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,na,na,NaN,0\n', ...
+      dimensao_str, Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), ...
+      com_pca, norm);
+
+    % ---------------- Nearest Centroid (NC)
+    cfg_nc = struct('normalization', norm);
+    t0 = tic;
+    [STATS_nc, TX_OK_nc] = nc(D, Nr, Ptrain, cfg_nc);
+    tempo = toc(t0);
+    fprintf(fid, 'nc,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,na,na,NaN,0\n', ...
+      dimensao_str, Nr, tempo, STATS_nc(1), STATS_nc(2), STATS_nc(3), STATS_nc(4), STATS_nc(5), ...
+      com_pca, norm);
+
+    % ---------------- Linear Discriminant Analysis (LDA)
+    cfg_lda = struct('normalization', norm);
+    t0 = tic;
+    [STATS_lda, TX_OK_lda] = lda(D, Nr, Ptrain, cfg_lda);
+    tempo = toc(t0);
+    fprintf(fid, 'lda,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,na,na,NaN,0\n', ...
+      dimensao_str, Nr, tempo, STATS_lda(1), STATS_lda(2), STATS_lda(3), STATS_lda(4), STATS_lda(5), ...
+      com_pca, norm);
   end
 
   fclose(fid);
 endfunction
 
 
-compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, 'resultados_todos_auto-sem-pca.csv');
+compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, 'resultados_todos_sem_pca.csv');
