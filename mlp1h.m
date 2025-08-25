@@ -1,6 +1,6 @@
 % MLP 1-hidden layer classifier
 
-function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
+function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean] = mlp1h(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
@@ -8,7 +8,8 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
   K = max(D(:,end));
   H = 20;
   TX_OK = zeros(Nr,1);
-  R2 = zeros(Nr,1);
+  R2_train = zeros(Nr,1);
+  R2_test = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -118,7 +119,17 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
       end
     end % epochs
 
-    % teste
+    % --- Compute R2 on training data
+    y_true_train = Train(:,end);
+    Z1_tr = Xtrain * W1 + b1;
+    A1_tr = forward(Z1_tr, config.hidden_act, config.leaky_alpha);
+    Z2_tr = A1_tr * W2 + b2;
+    A2_tr = softmax(Z2_tr);
+    [~, pred_train] = max(A2_tr, [], 2);
+    SSres_train = sum((y_true_train - pred_train).^2);
+    SStot_train = sum((y_true_train - mean(y_true_train)).^2);
+    R2_train(r) = 1 - (SSres_train / SStot_train);
+    % --- Test evaluation
     Z1t = Xtest * W1 + b1;
     switch config.hidden_act
       case 'sigmoid', A1t = 1./(1+exp(-Z1t));
@@ -133,19 +144,21 @@ function [STATS TX_OK W1 W2] = mlp1h(D, Nr, Ptrain, config)
 
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
 
-    % Coeficiente de determinação (R^2) entre rótulos e predições
-    y_true = Test(:,end);
-    y_pred = pred;
-    SSres = sum((y_true - y_pred).^2);
-    SStot = sum((y_true - mean(y_true)).^2);
-    R2(r) = 1 - SSres / SStot;
+    % Coeficiente de determinação (R^2) entre rótulos e predições (test)
+    y_true_test = Test(:,end);
+    y_pred_test = pred;
+    SSres_test = sum((y_true_test - y_pred_test).^2);
+    SStot_test = sum((y_true_test - mean(y_true_test)).^2);
+    R2_test(r) = 1 - (SSres_test / SStot_test);
   end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-  R2_mean = mean(R2);
+  R2_train_mean = mean(R2_train);
+  R2_test_mean = mean(R2_test);
 
   fprintf('mlp1h: normalization: %s, hidden_act: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.hidden_act, config.opt_variant, config.eta, config.epochs);
-  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
+    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction
 
 

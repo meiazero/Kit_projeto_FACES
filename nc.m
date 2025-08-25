@@ -1,13 +1,14 @@
 % Nearest Centroid classifier
 
-function [STATS, TX_OK] = nc(D, Nr, Ptrain, config)
+function [STATS, TX_OK, R2_train_mean, R2_test_mean] = nc(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
-  R2 = zeros(Nr,1);
+  R2_train = zeros(Nr,1);
+  R2_test = zeros(Nr,1);
   epsn = 1e-8;
 
   % default normalization
@@ -65,6 +66,24 @@ function [STATS, TX_OK] = nc(D, Nr, Ptrain, config)
     end
 
     TX_OK(r) = sum(preds == Ytest) / M * 100;
+    % --- Compute R2 on training data
+    Ytrain = Train(:,end);
+    Ntrain = size(Xtrain,1);
+    preds_train = zeros(Ntrain,1);
+    for i = 1:Ntrain
+      x_tr = Xtrain(i,:);
+      d2_tr = sum((centroids - x_tr).^2, 2);
+      [~, preds_train(i)] = min(d2_tr);
+    end
+    SSres_train = sum((Ytrain - preds_train).^2);
+    SStot_train = sum((Ytrain - mean(Ytrain)).^2);
+    R2_train(r) = 1 - SSres_train / SStot_train;
+    % --- Compute R2 on test predictions
+    y_true_test = Test(:,end);
+    y_pred_test = preds;
+    SSres_test = sum((y_true_test - y_pred_test).^2);
+    SStot_test = sum((y_true_test - mean(y_true_test)).^2);
+    R2_test(r) = 1 - SSres_test / SStot_test;
 
     % Coeficiente de determinação (R^2) entre rótulos e predições
     y_true = Test(:,end);
@@ -75,9 +94,10 @@ function [STATS, TX_OK] = nc(D, Nr, Ptrain, config)
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-  R2_mean = mean(R2);
+  R2_train_mean = mean(R2_train);
+  R2_test_mean = mean(R2_test);
 
   fprintf('nc: normalization: %s\n', config.normalization);
-  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', ...
-    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
+    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction

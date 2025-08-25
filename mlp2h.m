@@ -1,6 +1,6 @@
 % MLP 2-hidden layer classifier
 
-function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
+function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean] = mlp2h(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
@@ -8,7 +8,8 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
   K = max(D(:,end));
   H1 = 20; H2 = 10;
   TX_OK = zeros(Nr,1);
-  R2 = zeros(Nr,1);
+  R2_train = zeros(Nr,1);
+  R2_test = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -136,7 +137,16 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
       end
     end % epochs
 
-    % teste
+    % --- Compute R2 on training data
+    y_true_train = Train(:,end);
+    A1_tr = forward(Xtrain * W1 + b1, config.act1, config.leaky_alpha);
+    A2_tr = forward(A1_tr * W2 + b2, config.act2, config.leaky_alpha);
+    A3_tr = softmax(A2_tr * W3 + b3);
+    [~, pred_train] = max(A3_tr, [], 2);
+    SSres_train = sum((y_true_train - pred_train).^2);
+    SStot_train = sum((y_true_train - mean(y_true_train)).^2);
+    R2_train(r) = 1 - SSres_train / SStot_train;
+    % --- Test evaluation
     A1t = forward(Xtest * W1 + b1, config.act1, config.leaky_alpha);
     A2t = forward(A1t * W2 + b2, config.act2, config.leaky_alpha);
     A3t = softmax(A2t * W3 + b3);
@@ -144,19 +154,21 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
 
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
 
-    % Coeficiente de determinação (R^2) entre rótulos e predições
-    y_true = Test(:,end);
-    y_pred = pred;
-    SSres = sum((y_true - y_pred).^2);
-    SStot = sum((y_true - mean(y_true)).^2);
-    R2(r) = 1 - SSres / SStot;
+    % Coeficiente de determinação (R^2) entre rótulos e predições (test)
+    y_true_test = Test(:,end);
+    y_pred_test = pred;
+    SSres_test = sum((y_true_test - y_pred_test).^2);
+    SStot_test = sum((y_true_test - mean(y_true_test)).^2);
+    R2_test(r) = 1 - SSres_test / SStot_test;
   end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-  R2_mean = mean(R2);
+  R2_train_mean = mean(R2_train);
+  R2_test_mean = mean(R2_test);
 
   fprintf('mlp2h: normalization: %s, act1: %s, act2: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.act1, config.act2, config.opt_variant, config.eta, config.epochs);
-  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
+    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction
 
 function A = forward(Z, act, alpha)

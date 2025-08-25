@@ -1,13 +1,14 @@
 % Linear MQ classifier
 
-function [STATS, TX_OK, W, R2_mean] = linearMQ(D, Nr, Ptrain, config)
+function [STATS, TX_OK, W, R2_train_mean, R2_test_mean] = linearMQ(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
-  R2 = zeros(Nr,1);
+  R2_train = zeros(Nr,1);
+  R2_test = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -52,24 +53,32 @@ function [STATS, TX_OK, W, R2_mean] = linearMQ(D, Nr, Ptrain, config)
     Xtrain_b = [ones(Ntrain,1) Xtrain];
     W = Xtrain_b \ Ytrain;
 
+    % --- Compute R2 on training data
+    y_true_train = Train(:,end);
+    Xtrain_b = [ones(size(Xtrain,1),1) Xtrain];
+    Ypred_train = Xtrain_b * W;
+    [~, pred_train] = max(Ypred_train, [], 2);
+    SSres_train = sum((y_true_train - pred_train).^2);
+    SStot_train = sum((y_true_train - mean(y_true_train)).^2);
+    R2_train(r) = 1 - (SSres_train / SStot_train);
+
+    % --- Test predictions and R2
     Xtest_b = [ones(size(Xtest,1),1) Xtest];
-    Ypred = Xtest_b * W;
-    [~, pred] = max(Ypred, [], 2);
-    correct = sum(pred == Test(:,end));
-
+    Ypred_test = Xtest_b * W;
+    [~, pred_test] = max(Ypred_test, [], 2);
+    correct = sum(pred_test == Test(:,end));
     TX_OK(r) = correct / size(Test,1) * 100;
-
-    % Coeficiente de determinação (R^2) entre rótulos e predições
-    y_true = Test(:,end);
-    y_pred = pred;
-    SSres = sum((y_true - y_pred).^2);
-    SStot = sum((y_true - mean(y_true)).^2);
-    R2(r) = 1 - SSres / SStot;
+    y_true_test = Test(:,end);
+    SSres_test = sum((y_true_test - pred_test).^2);
+    SStot_test = sum((y_true_test - mean(y_true_test)).^2);
+    R2_test(r) = 1 - (SSres_test / SStot_test);
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-  R2_mean = mean(R2);
+  R2_train_mean = mean(R2_train);
+  R2_test_mean = mean(R2_test);
 
   fprintf('linearMQ: normalization: %s\n', config.normalization);
-  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_mean);
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n',...
+   STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction

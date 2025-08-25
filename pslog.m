@@ -1,12 +1,13 @@
 % Perceptron Logistic Classifier
-function [STATS, TX_OK, W, R2_mean] = pslog(D, Nr, Ptrain, config)
+function [STATS, TX_OK, W, R2_train_mean, R2_test_mean] = pslog(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
-  R2 = zeros(Nr,1);
+  R2_train = zeros(Nr,1);
+  R2_test = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -84,26 +85,36 @@ function [STATS, TX_OK, W, R2_mean] = pslog(D, Nr, Ptrain, config)
       end
     end
 
-    % teste
+    % --- Compute R2 on training data
+    y_true_train = Train(:,end);
+    Xb_train = Xb;
+    Ztrain = Xb_train * W;
+    [~, pred_train] = max(Ztrain, [], 2);
+    SSres_train = sum((y_true_train - pred_train).^2);
+    SStot_train = sum((y_true_train - mean(y_true_train)).^2);
+    R2_train(r) = 1 - SSres_train / SStot_train;
+    % --- Test evaluation
     Xtest_b = [ones(size(Xtest,1),1) Xtest];
     Ztest = Xtest_b * W;
     [~, pred] = max(Ztest, [], 2);
 
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
 
-    % Coeficiente de determinação (R^2) entre rótulos e predições
-    y_true = Test(:,end);
-    y_pred = pred;
-    SSres = sum((y_true - y_pred).^2);
-    SStot = sum((y_true - mean(y_true)).^2);
-    R2(r) = 1 - SSres / SStot;
+    % Coeficiente de determinação (R^2) entre rótulos e predições (test)
+    y_true_test = Test(:,end);
+    y_pred_test = pred;
+    SSres_test = sum((y_true_test - y_pred_test).^2);
+    SStot_test = sum((y_true_test - mean(y_true_test)).^2);
+    R2_test(r) = 1 - (SSres_test / SStot_test);
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
-  R2_mean = mean(R2);
+  R2_train_mean = mean(R2_train);
+  R2_test_mean = mean(R2_test);
 
   fprintf('pslog: normalization: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.opt_variant, config.eta, config.epochs);
-  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
+    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction
 
 function S = softmax_rows(Z)
