@@ -1,6 +1,6 @@
 % Linear MQ classifier
 
-function [STATS, TX_OK, W, R2_train_mean, R2_test_mean] = linearMQ(D, Nr, Ptrain, config)
+function [STATS, TX_OK, W, R2_train_mean, R2_test_mean, rec_mean, prec_mean, f1_mean] = linearMQ(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
@@ -9,6 +9,9 @@ function [STATS, TX_OK, W, R2_train_mean, R2_test_mean] = linearMQ(D, Nr, Ptrain
   TX_OK = zeros(Nr,1);
   R2_train = zeros(Nr,1);
   R2_test = zeros(Nr,1);
+  rec = zeros(Nr,1);
+  prec = zeros(Nr,1);
+  f1 = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -61,22 +64,32 @@ function [STATS, TX_OK, W, R2_train_mean, R2_test_mean] = linearMQ(D, Nr, Ptrain
     SSres_train = sum((y_true_train - pred_train).^2);
     SStot_train = sum((y_true_train - mean(y_true_train)).^2);
     R2_train(r) = 1 - (SSres_train / SStot_train);
+    if R2_train(r) < 0, R2_train(r) = 0; end
 
     % --- Test predictions and R2
     Xtest_b = [ones(size(Xtest,1),1) Xtest];
     Ypred_test = Xtest_b * W;
     [~, pred_test] = max(Ypred_test, [], 2);
-    correct = sum(pred_test == Test(:,end));
-    TX_OK(r) = correct / size(Test,1) * 100;
+    % classification metrics for test
     y_true_test = Test(:,end);
+    [rec(r), prec(r), f1(r)] = classification_metrics(y_true_test, pred_test);
+    % accuracy
+    correct = sum(pred_test == y_true_test);
+    TX_OK(r) = correct / size(Test,1) * 100;
+    % R2 for test
     SSres_test = sum((y_true_test - pred_test).^2);
     SStot_test = sum((y_true_test - mean(y_true_test)).^2);
     R2_test(r) = 1 - (SSres_test / SStot_test);
+    if R2_test(r) < 0, R2_test(r) = 0; end
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
   R2_train_mean = mean(R2_train);
   R2_test_mean = mean(R2_test);
+  % summary of classification metrics
+  rec_mean = mean(rec);
+  prec_mean = mean(prec);
+  f1_mean = mean(f1);
 
   fprintf('linearMQ: normalization: %s\n', config.normalization);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n',...

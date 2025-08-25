@@ -84,13 +84,6 @@ function [STATS, TX_OK, R2_train_mean, R2_test_mean] = nc(D, Nr, Ptrain, config)
     SSres_test = sum((y_true_test - y_pred_test).^2);
     SStot_test = sum((y_true_test - mean(y_true_test)).^2);
     R2_test(r) = 1 - SSres_test / SStot_test;
-
-    % Coeficiente de determinação (R^2) entre rótulos e predições
-    y_true = Test(:,end);
-    y_pred = pred;
-    SSres = sum((y_true - y_pred).^2);
-    SStot = sum((y_true - mean(y_true)).^2);
-    R2(r) = 1 - SSres / SStot;
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];

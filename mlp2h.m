@@ -1,15 +1,19 @@
 % MLP 2-hidden layer classifier
 
-function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean] = mlp2h(D, Nr, Ptrain, config)
+function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean, rec_mean, prec_mean, f1_mean] = mlp2h(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   H1 = 20; H2 = 10;
-  TX_OK = zeros(Nr,1);
+  TX_OK    = zeros(Nr,1);
   R2_train = zeros(Nr,1);
-  R2_test = zeros(Nr,1);
+  R2_test  = zeros(Nr,1);
+  % classification metrics per run
+  rec  = zeros(Nr,1);
+  prec = zeros(Nr,1);
+  f1   = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -146,25 +150,33 @@ function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean] = mlp2h(D, Nr, 
     SSres_train = sum((y_true_train - pred_train).^2);
     SStot_train = sum((y_true_train - mean(y_true_train)).^2);
     R2_train(r) = 1 - SSres_train / SStot_train;
+    if R2_train(r) < 0, R2_train(r) = 0; end
     % --- Test evaluation
     A1t = forward(Xtest * W1 + b1, config.act1, config.leaky_alpha);
     A2t = forward(A1t * W2 + b2, config.act2, config.leaky_alpha);
     A3t = softmax(A2t * W3 + b3);
     [~, pred] = max(A3t, [], 2);
 
-    TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
-
-    % Coeficiente de determinação (R^2) entre rótulos e predições (test)
+    % classification metrics for test set
     y_true_test = Test(:,end);
     y_pred_test = pred;
+    [rec(r), prec(r), f1(r)] = classification_metrics(y_true_test, y_pred_test);
+    % accuracy
+    TX_OK(r) = sum(pred == y_true_test) / size(Test,1) * 100;
+    % Coeficiente de determinação (R^2) entre rótulos e predições (test)
     SSres_test = sum((y_true_test - y_pred_test).^2);
     SStot_test = sum((y_true_test - mean(y_true_test)).^2);
     R2_test(r) = 1 - SSres_test / SStot_test;
+    if R2_test(r) < 0, R2_test(r) = 0; end
   end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
   R2_train_mean = mean(R2_train);
-  R2_test_mean = mean(R2_test);
+  R2_test_mean  = mean(R2_test);
+  % summary of classification metrics
+  rec_mean  = mean(rec);
+  prec_mean = mean(prec);
+  f1_mean   = mean(f1);
 
   fprintf('mlp2h: normalization: %s, act1: %s, act2: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.act1, config.act2, config.opt_variant, config.eta, config.epochs);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
