@@ -1,15 +1,27 @@
-D=load('recfaces.dat');
-Nr = 50; Ptrain = 80;
-dimensao_str = '30x30';
-com_pca = 'nao';
+function compara_todos_automatizado()
+  % COMPARA_TODOS_AUTOMATIZADO Executa vários classificadores e salva em CSV.
+  % out_csv: nome do arquivo CSV de saída (opcional).
+  out_csv = 'resultados_todos_sem_pca.csv'
+  pkg load statistics;  % necessário para normalização e estatísticas
 
-function compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, out_csv)
-  % CSV
-  fid = fopen(out_csv, 'a');
-  if fid == -1, error('Não foi possível abrir %s', out_csv); end
+  % Carrega dados e parâmetros padrão
+  D = load('recfaces.dat');
+  Nr = 50;
+  Ptrain = 80;
+  dimensao_str = '30x30';
+  com_pca = 'nao';
+
+  % Abre arquivo CSV para anexar resultados
+  [fid, errmsg] = fopen(out_csv, 'a');
+  if fid == -1
+    error('Não foi possível abrir %s: %s', out_csv, errmsg);
+  end
   info = dir(out_csv);
   if info.bytes == 0
-    fprintf(fid, 'modelo,dimensao,numero_treinamentos,tempo_execucao_em_segundos,media,minimo,maximo,mediana,desvio_padrao,com_pca,normalizacao,funcao_ativacao,optimizador,eta,epocas\n');
+    header = ['modelo,dimensao,numero_treinamentos,tempo_execucao_em_segundos,' ...
+              'media,minimo,maximo,mediana,desvio_padrao,com_pca,normalizacao,' ...
+              'funcao_ativacao,optimizador,eta,epocas\n'];
+    fprintf(fid, '%s', header);
   end
 
   normalizacoes = {'zscore','minmax11', 'minmax01', 'none'};           % reduzi por padrão; amplie se quiser
@@ -117,6 +129,3 @@ function compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, out_cs
 
   fclose(fid);
 endfunction
-
-
-compara_todos_automatizado(D, Nr, Ptrain, dimensao_str, com_pca, 'resultados_todos_sem_pca.csv');
