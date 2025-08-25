@@ -82,12 +82,14 @@ function [STATS, TX_OK, R2_train_mean, R2_test_mean] = nb(D, Nr, Ptrain, config)
     SSres_train = sum((Ytrain - preds_train).^2);
     SStot_train = sum((Ytrain - mean(Ytrain)).^2);
     R2_train(r) = 1 - SSres_train / SStot_train;
+    if R2_train(r) < 0, R2_train(r) = 0; end
     % --- Compute R2 on test predictions
     y_true_test = Test(:,end);
     y_pred_test = preds;
     SSres_test = sum((y_true_test - y_pred_test).^2);
     SStot_test = sum((y_true_test - mean(y_true_test)).^2);
     R2_test(r) = 1 - SSres_test / SStot_test;
+    if R2_test(r) < 0, R2_test(r) = 0; end
 
   end
 
