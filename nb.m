@@ -1,12 +1,17 @@
+% Naive Bayes classifier
+
 function [STATS, TX_OK] = nb(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
+
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
   epsn = 1e-8;
+
   % defaults
   if ~isfield(config,'normalization'), config.normalization = 'zscore'; end
+
   for r = 1:Nr
     idx = randperm(N);
     Dsh = D(idx,:);
@@ -15,6 +20,7 @@ function [STATS, TX_OK] = nb(D, Nr, Ptrain, config)
     Test  = Dsh(Ntrain+1:end,:);
     Xtrain_raw = Train(:,1:p);
     Xtest_raw  = Test(:,1:p);
+
     % Normalization
     switch config.normalization
       case 'zscore'
@@ -31,6 +37,7 @@ function [STATS, TX_OK] = nb(D, Nr, Ptrain, config)
     end
     Ytrain = Train(:,end);
     Ytest  = Test(:,end);
+
     % Estimate Gaussian parameters
     mu = zeros(K, p);
     sigma2 = zeros(K, p);
@@ -54,9 +61,21 @@ function [STATS, TX_OK] = nb(D, Nr, Ptrain, config)
       end
       [~, preds(i)] = max(logp);
     end
+
     TX_OK(r) = sum(preds == Ytest) / M * 100;
+
+    % Coeficiente de determinação (R^2) entre rótulos e predições
+    y_true = Test(:,end);
+    y_pred = pred;
+    SSres = sum((y_true - y_pred).^2);
+    SStot = sum((y_true - mean(y_true)).^2);
+    R2(r) = 1 - SSres / SStot;
+
   end
+
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+  R2_mean = mean(R2);
+
   fprintf('nb: normalization: %s\n', config.normalization);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
 endfunction

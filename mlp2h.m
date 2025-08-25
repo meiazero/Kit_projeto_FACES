@@ -1,3 +1,5 @@
+% MLP 2-hidden layer classifier
+
 function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
@@ -6,6 +8,7 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
   K = max(D(:,end));
   H1 = 20; H2 = 10;
   TX_OK = zeros(Nr,1);
+  R2 = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -138,10 +141,19 @@ function [STATS TX_OK W1 W2 W3] = mlp2h(D, Nr, Ptrain, config)
     A2t = forward(A1t * W2 + b2, config.act2, config.leaky_alpha);
     A3t = softmax(A2t * W3 + b3);
     [~, pred] = max(A3t, [], 2);
+
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
+
+    % Coeficiente de determinação (R^2) entre rótulos e predições
+    y_true = Test(:,end);
+    y_pred = pred;
+    SSres = sum((y_true - y_pred).^2);
+    SStot = sum((y_true - mean(y_true)).^2);
+    R2(r) = 1 - SSres / SStot;
   end % repeats
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+  R2_mean = mean(R2);
 
   fprintf('mlp2h: normalization: %s, act1: %s, act2: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.act1, config.act2, config.opt_variant, config.eta, config.epochs);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));

@@ -1,10 +1,13 @@
-function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain, config)
+% Linear MQ classifier
+
+function [STATS, TX_OK, W, R2_mean] = linearMQ(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
+  R2 = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -53,11 +56,20 @@ function [STATS TX_OK W] = linearMQ(D, Nr, Ptrain, config)
     Ypred = Xtest_b * W;
     [~, pred] = max(Ypred, [], 2);
     correct = sum(pred == Test(:,end));
+
     TX_OK(r) = correct / size(Test,1) * 100;
+
+    % Coeficiente de determinação (R^2) entre rótulos e predições
+    y_true = Test(:,end);
+    y_pred = pred;
+    SSres = sum((y_true - y_pred).^2);
+    SStot = sum((y_true - mean(y_true)).^2);
+    R2(r) = 1 - SSres / SStot;
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+  R2_mean = mean(R2);
 
   fprintf('linearMQ: normalization: %s\n', config.normalization);
-  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
+  fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_mean);
 endfunction

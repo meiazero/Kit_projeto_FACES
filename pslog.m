@@ -1,10 +1,12 @@
-function [STATS TX_OK W] = pslog(D, Nr, Ptrain, config)
+% Perceptron Logistic Classifier
+function [STATS, TX_OK, W, R2_mean] = pslog(D, Nr, Ptrain, config)
   if nargin < 4, config = struct(); end
 
   [N, p1] = size(D);
   p = p1 - 1;
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
+  R2 = zeros(Nr,1);
   epsn = 1e-8;
 
   % defaults
@@ -86,10 +88,19 @@ function [STATS TX_OK W] = pslog(D, Nr, Ptrain, config)
     Xtest_b = [ones(size(Xtest,1),1) Xtest];
     Ztest = Xtest_b * W;
     [~, pred] = max(Ztest, [], 2);
+
     TX_OK(r) = sum(pred == Test(:,end)) / size(Test,1) * 100;
+
+    % Coeficiente de determinação (R^2) entre rótulos e predições
+    y_true = Test(:,end);
+    y_pred = pred;
+    SSres = sum((y_true - y_pred).^2);
+    SStot = sum((y_true - mean(y_true)).^2);
+    R2(r) = 1 - SSres / SStot;
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
+  R2_mean = mean(R2);
 
   fprintf('pslog: normalization: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.opt_variant, config.eta, config.epochs);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f\n', STATS(1), STATS(2), STATS(3), STATS(4), STATS(5));
