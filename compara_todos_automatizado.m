@@ -61,52 +61,52 @@ function compara_todos_automatizado()
       end
     end
 
-    % % ---------------- MLPs (norm x act x opt x eta)
-    % for ia = 1:length(ativacoes)
-    %   act = ativacoes{ia};
-    %   for io = 1:length(otimizadores)
-    %     opt = otimizadores{io};
-    %     for ie = 1:length(etas)
-    %       eta = etas(ie);
+    % ---------------- MLPs (norm x act x opt x eta)
+    for ia = 1:length(ativacoes)
+      act = ativacoes{ia};
+      for io = 1:length(otimizadores)
+        opt = otimizadores{io};
+        for ie = 1:length(etas)
+          eta = etas(ie);
 
-    %       % mlp1h
-    %       cfg1 = struct('normalization', norm, 'hidden_act', act, 'opt_variant', opt, 'eta', eta, 'epochs', epocas);
-    %       t0 = tic;
-    %       [STATS, TX_OK_dummy, W1_dummy, W2_dummy, R2_mlp1h_train, R2_mlp1h_test, rec_mlp1h, prec_mlp1h, f1_mlp1h] = mlp1h(D, Nr, Ptrain, cfg1);
-    %       tempo = toc(t0);
-    %       % convert classification metrics to percentages
-    %       rec_mlp1h = rec_mlp1h * 100;
-    %       prec_mlp1h = prec_mlp1h * 100;
-    %       f1_mlp1h = f1_mlp1h * 100;
-    %       % coefficient of variation and 95%% confidence interval for accuracy
-    %       cv = STATS(5) / STATS(1);
-    %       ci_err = 1.96 * STATS(5) / sqrt(Nr);
-    %       ci_lower = STATS(1) - ci_err;
-    %       ci_upper = STATS(1) + ci_err;
-    %       fprintf(fid, 'mlp1h,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,%s,%s,%.3f,%d\n', ...
-    %         dimensao_str, Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), cv, ci_lower, ci_upper, ...
-    %         R2_mlp1h_train, R2_mlp1h_test, rec_mlp1h, prec_mlp1h, f1_mlp1h, com_pca, norm, act, opt, eta, epocas);
+          % mlp1h
+          cfg1 = struct('normalization', norm, 'hidden_act', act, 'opt_variant', opt, 'eta', eta, 'epochs', epocas);
+          t0 = tic;
+          [STATS, TX_OK_dummy, W1_dummy, W2_dummy, R2_mlp1h_train, R2_mlp1h_test, rec_mlp1h, prec_mlp1h, f1_mlp1h] = mlp1h(D, Nr, Ptrain, cfg1);
+          tempo = toc(t0);
+          % convert classification metrics to percentages
+          rec_mlp1h = rec_mlp1h * 100;
+          prec_mlp1h = prec_mlp1h * 100;
+          f1_mlp1h = f1_mlp1h * 100;
+          % coefficient of variation and 95%% confidence interval for accuracy
+          cv = STATS(5) / STATS(1);
+          ci_err = 1.96 * STATS(5) / sqrt(Nr);
+          ci_lower = STATS(1) - ci_err;
+          ci_upper = STATS(1) + ci_err;
+          fprintf(fid, 'mlp1h,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,%s,%s,%.3f,%d\n', ...
+            dimensao_str, Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), cv, ci_lower, ci_upper, ...
+            R2_mlp1h_train, R2_mlp1h_test, rec_mlp1h, prec_mlp1h, f1_mlp1h, com_pca, norm, act, opt, eta, epocas);
 
-    %       % mlp2h
-    %       cfg2 = struct('normalization', norm, 'act1', act, 'act2', act, 'opt_variant', opt, 'eta', eta, 'epochs', epocas);
-    %       t0 = tic;
-    %       [STATS, TX_OK_dummy, W1_dummy, W2_dummy, W3_dummy, R2_mlp2h_train, R2_mlp2h_test, rec_mlp2h, prec_mlp2h, f1_mlp2h] = mlp2h(D, Nr, Ptrain, cfg2);
-    %       tempo = toc(t0);
-    %       % convert classification metrics to percentages
-    %       rec_mlp2h = rec_mlp2h * 100;
-    %       prec_mlp2h = prec_mlp2h * 100;
-    %       f1_mlp2h = f1_mlp2h * 100;
-    %       % coefficient of variation and 95%% confidence interval for accuracy
-    %       cv = STATS(5) / STATS(1);
-    %       ci_err = 1.96 * STATS(5) / sqrt(Nr);
-    %       ci_lower = STATS(1) - ci_err;
-    %       ci_upper = STATS(1) + ci_err;
-    %       fprintf(fid, 'mlp2h,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,%s,%s,%.3f,%d\n', ...
-    %         dimensao_str, Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), cv, ci_lower, ci_upper, ...
-    %         R2_mlp2h_train, R2_mlp2h_test, rec_mlp2h, prec_mlp2h, f1_mlp2h, com_pca, norm, act, opt, eta, epocas);
-    %     end
-    %   end
-    % end
+          % mlp2h
+          cfg2 = struct('normalization', norm, 'act1', act, 'act2', act, 'opt_variant', opt, 'eta', eta, 'epochs', epocas);
+          t0 = tic;
+          [STATS, TX_OK_dummy, W1_dummy, W2_dummy, W3_dummy, R2_mlp2h_train, R2_mlp2h_test, rec_mlp2h, prec_mlp2h, f1_mlp2h] = mlp2h(D, Nr, Ptrain, cfg2);
+          tempo = toc(t0);
+          % convert classification metrics to percentages
+          rec_mlp2h = rec_mlp2h * 100;
+          prec_mlp2h = prec_mlp2h * 100;
+          f1_mlp2h = f1_mlp2h * 100;
+          % coefficient of variation and 95%% confidence interval for accuracy
+          cv = STATS(5) / STATS(1);
+          ci_err = 1.96 * STATS(5) / sqrt(Nr);
+          ci_lower = STATS(1) - ci_err;
+          ci_upper = STATS(1) + ci_err;
+          fprintf(fid, 'mlp2h,%s,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%s,%s,%s,%s,%.3f,%d\n', ...
+            dimensao_str, Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), cv, ci_lower, ci_upper, ...
+            R2_mlp2h_train, R2_mlp2h_test, rec_mlp2h, prec_mlp2h, f1_mlp2h, com_pca, norm, act, opt, eta, epocas);
+        end
+      end
+    end
 
     % ---------------- k-Nearest Neighbors (kNN)
     k_list = [1, 3, 5];
