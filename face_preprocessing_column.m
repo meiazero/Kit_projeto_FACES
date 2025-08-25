@@ -34,7 +34,7 @@ for i=1:Nind,  % Indice para os individuos
 
         Img=imread(nome);  % le imagem
 
-        Ar = imresize(Img,[30,30]);   % (Opcional) Redimensiona imagem
+        Ar = imresize(Img,[20,20]);   % (Opcional) Redimensiona imagem
 
         An=Ar; %An=imnoise(Ar,'gaussian',0,0.005);  % (Opcional) adiciona ruido
 
