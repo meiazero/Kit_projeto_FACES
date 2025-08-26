@@ -23,7 +23,7 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
   % gradient descent strategy (sgd, batch-gd, mini-batch-gd)
   if ~isfield(config,'gbds'),          config.gbds = 'batch-gd'; end
 
-  if ~isfield(config,'batch_size'),    config.batch_size = 16; end
+  if ~isfield(config,'batch_size'),    config.batch_size = 32; end
   if ~isfield(config,'eta'),           config.eta = 0.003; end
   if ~isfield(config,'epochs'),        config.epochs = 1; end
   if ~isfield(config,'mu'),            config.mu = 0.9; end
