@@ -1,5 +1,5 @@
 function compara_todos_automatizado()
-  out_csv = 'resultados_todos_sem_pca.csv'
+  out_csv = 'resultados.csv'
   pkg load statistics;
 
   D = load('recfaces.dat');
@@ -13,81 +13,79 @@ function compara_todos_automatizado()
   fid = fopen(out_csv, 'w');
   if fid == -1, error('Não foi possível abrir %s para escrita', out_csv); end
   % Cabeçalho
-  fprintf(fid, 'modelo,numero_treinamentos,tempo_execucao_em_segundos,media,minimo,maximo,mediana,desvio_padrao,r2_train,r2_test,com_pca,normalizacao,funcao_ativacao,optimizador,eta,epocas\n');
+  fprintf(fid, 'modelo,numero_treinamentos,tempo_execucao_em_segundos,media,minimo,maximo,mediana,desvio_padrao,r2_train,r2_test,com_pca,normalizacao,funcao_ativacao,optimizador,eta,epochs\n');
   for i=1:length(lines)
     fprintf(fid, '%s', lines{i});
   end
 
   % Para todos os modelos
-  normalizacoes = {'zscore','minmax11', 'minmax01'};
+  normalization = {'zscore','minmax11', 'minmax01'};
 
   % Para MLPs
-  ativacoes = {'sigmoid','tanh','relu', 'leakyrelu'};
+  activationFn = {'sigmoid','tanh','relu', 'leakyrelu'};
 
   % Para pslog/mlp
-  otimizadores = {'gd', 'momentum'};
-  etas = [0.01];
-  epocas = 200;
+  optmizators = {'gd', 'adam'};
+  gbds = {'sgd', 'batch-gd'};
+  etas = [0.003];
+  epochs = 300;
 
-  for in = 1:length(normalizacoes)
-    norm = normalizacoes{in};
+  for in = 1:length(normalization)
+    norm = normalization{in};
+
     % ---------------- linearMQ (só normalização)
     cfg = struct('normalization', norm);
     t0 = tic;
     [STATS, TX_OK, W, R2_lin_train, R2_lin_test] = linearMQ(D, Nr, Ptrain, cfg);
     tempo = toc(t0);
     fprintf(fid, 'linearMQ,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,NaN,NaN,NaN,%d\n', ...
-      Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_lin_train, R2_lin_test, com_pca, norm, epocas);
-  end
+      Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_lin_train, R2_lin_test, com_pca, norm, epochs);
 
-  for in = 1:length(normalizacoes)
-    norm = normalizacoes{in};
     % ---------------- pslog (norm x opt x eta)
-    for io = 1:length(otimizadores)
-      opt = otimizadores{io};
+    for io = 1:length(optmizators)
+      opt = optmizators{io};
       for ie = 1:length(etas)
         eta = etas(ie);
-        cfg = struct('normalization', norm, 'opt_variant', opt, 'eta', eta, 'epochs', epocas, 'mu', 0.9, 'rho', 0.9, 'eps_opt', 1e-8);
+        cfg = struct('normalization', norm, 'opt_variant', opt, 'eta', eta, 'epochs', epochs, 'mu', 0.9, 'rho', 0.9, 'eps_opt', 1e-8);
         t0 = tic;
         [STATS, TX_OK, W, R2_pslog_train, R2_pslog_test] = pslog(D, Nr, Ptrain, cfg);
         tempo = toc(t0);
         fprintf(fid, 'pslog,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,NaN,%s,%.3f,%d\n', ...
-          Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_pslog_train, R2_pslog_test, com_pca, norm, opt, eta, epocas);
+          Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_pslog_train, R2_pslog_test, com_pca, norm, opt, eta, epochs);
       end
     end
 
     % ---------------- MLPs (norm x act x opt x eta)
-    for ia = 1:length(ativacoes)
-      act = ativacoes{ia};
-      for io = 1:length(otimizadores)
-        opt = otimizadores{io};
+    % MLP 1-hidden layer
+    for ia = 1:length(activationFn)
+      act = activationFn{ia};
+      for io = 1:length(optmizators)
+        opt = optmizators{io};
         for ie = 1:length(etas)
           eta = etas(ie);
-
-          % mlp1h
-          cfg1 = struct('normalization', norm, 'hidden_act', act, 'opt_variant', opt, 'eta', eta, 'epochs', epocas);
+          cfg1 = struct('normalization', norm, 'act1', act, 'opt_variant', opt, 'eta', eta, 'epochs', epochs);
           t0 = tic;
-          [STATS, TX_OK_dummy, W1_dummy, W2_dummy, R2_mlp1h_train, R2_mlp1h_test, ] = mlp1h(D, Nr, Ptrain, cfg1);
+          [STATS, TX_OK_dummy, W1_dummy, W2_dummy, R2_mlp1h_train, R2_mlp1h_test] = mlp1h(D, Nr, Ptrain, cfg1);
           tempo = toc(t0);
           fprintf(fid, 'mlp1h,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,%s,%s,%.3f,%d\n', ...
-            Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_mlp1h_test, R2_mlp1h_train, com_pca, norm, act, opt, eta, epocas);
+            Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_mlp1h_test, R2_mlp1h_train, com_pca, norm, act, opt, eta, epochs);
         end
       end
     end
 
-    for ia = 1:length(ativacoes)
-      act = ativacoes{ia};
-      for io = 1:length(otimizadores)
-        opt = otimizadores{io};
+    % MLP 2-hidden layer
+    for ia = 1:length(activationFn)
+      act = activationFn{ia};
+      for io = 1:length(optmizators)
+        opt = optmizators{io};
         for ie = 1:length(etas)
           eta = etas(ie);
-          % mlp2h
-          cfg2 = struct('normalization', norm, 'act1', act, 'act2', act, 'opt_variant', opt, 'eta', eta, 'epochs', epocas);
+          cfg2 = struct('normalization', norm, 'act1', act, 'act2', act, 'opt_variant', opt, 'eta', eta, 'epochs', epochs);
           t0 = tic;
-          [STATS, TX_OK_dummy, W1_dummy, W2_dummy, W3_dummy] = mlp2h(D, Nr, Ptrain, cfg2);
+          [STATS, TX_OK_dummy, W1_dummy, W2_dummy, W3_dummy, R2_mlp2h_train, R2_mlp2h_test] = mlp2h(D, Nr, Ptrain, cfg2);
           tempo = toc(t0);
           fprintf(fid, 'mlp2h,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,%s,%s,%.3f,%d\n', ...
-            Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_mlp1h_test, R2_mlp1h_train, com_pca, norm, act, opt, eta, epocas);
+            Nr, tempo, STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_mlp2h_test, R2_mlp2h_train, com_pca, norm, act, opt, eta, epochs);
 
         end
       end
@@ -128,6 +126,7 @@ function compara_todos_automatizado()
     tempo = toc(t0);
     fprintf(fid, 'lda,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,NaN,NaN,NaN,0\n', ...
       Nr, tempo, STATS_lda(1), STATS_lda(2), STATS_lda(3), STATS_lda(4), STATS_lda(5), R2_lda_train, R2_lda_test, com_pca, norm);
+
   end
 
 fclose(fid)
