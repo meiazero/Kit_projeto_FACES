@@ -17,19 +17,21 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
   % normalization variants (zscore, minmax01, minmax11, none)
   if ~isfield(config,'normalization'), config.normalization = 'zscore'; end
   % hidden activation variants (sigmoid, tanh, relu, leakyrelu)
-  if ~isfield(config,'hidden_act'),    config.hidden_act = 'sigmoid'; end
+  if ~isfield(config,'act1'),          config.act1 = 'sigmoid'; end
   % optization variants (gd, adam, adagrad, rmsprop)
   if ~isfield(config,'opt_variant'),   config.opt_variant = 'gd'; end
   % gradient descent strategy (sgd, batch-gd, mini-batch-gd)
-  if ~isfield(config,'gbds'),          config.gbds = 'sgd'; end
-  if ~isfield(config,'batch_size'),    config.batch_size = 32; end
+  if ~isfield(config,'gbds'),          config.gbds = 'batch-gd'; end
 
+  if ~isfield(config,'batch_size'),    config.batch_size = 32; end
   if ~isfield(config,'eta'),           config.eta = 0.003; end
-  if ~isfield(config,'epochs'),        config.epochs = 100; end
+  if ~isfield(config,'eps'),           config.epochs = 1; end
   if ~isfield(config,'mu'),            config.mu = 0.9; end
-  if ~isfield(config,'rho'),           config.rho = 0.9; end
+  if ~isfield(config,'rho'),           config.rho = 0.9; end       % rmsprop
   if ~isfield(config,'eps_opt'),       config.eps_opt = 1e-8; end
   if ~isfield(config,'leaky_alpha'),   config.leaky_alpha = 0.01; end
+  if ~isfield(config,'beta1'),         config.beta1 = 0.9; end     % adam
+  if ~isfield(config,'beta2'),         config.beta2 = 0.999; end   % adam
 
   for r=1:Nr
     idx = randperm(N);
@@ -61,7 +63,7 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
     Ytrain_oh = zeros(Ntrain, K);
     for i=1:Ntrain, Ytrain_oh(i, Train(i,end)) = 1; end
 
-    if any(strcmp(config.hidden_act, {'relu','leakyrelu'}))
+    if any(strcmp(config.act1, {'relu','leakyrelu'}))
       W1 = randn(p, H) * sqrt(2/p);
     else
       W1 = randn(p, H) * sqrt(1/p);
@@ -76,12 +78,12 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
     for e=1:config.epochs
       % Para otimizadores que usam gradiente em lote precisamos do forward completo
       Z1_full = Xtrain * W1 + b1;
-      A1_full = forward(Z1_full, config.hidden_act, config.leaky_alpha);
+      A1_full = forward(Z1_full, config.act1, config.leaky_alpha);
       Z2_full = A1_full * W2 + b2;
       A2_full = softmax(Z2_full);
       dZ2_full = (A2_full - Ytrain_oh) / Ntrain;
       dW2_full = A1_full' * dZ2_full; db2_full = sum(dZ2_full,1);
-      dZ1_full = (dZ2_full * W2') .* backward(Z1_full, A1_full, config.hidden_act, config.leaky_alpha);
+      dZ1_full = (dZ2_full * W2') .* backward(Z1_full, A1_full, config.act1, config.leaky_alpha);
       dW1_full = Xtrain' * dZ1_full; db1_full = sum(dZ1_full,1);
 
       switch config.opt_variant
@@ -101,13 +103,13 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
                 k = order(ii);
                 xk = Xtrain(k,:); yk = Ytrain_oh(k,:);
                 z1 = xk * W1 + b1;
-                a1 = forward(z1, config.hidden_act, config.leaky_alpha);
+                a1 = forward(z1, config.act1, config.leaky_alpha);
                 z2 = a1 * W2 + b2;
                 a2 = softmax(z2);
                 dz2 = (a2 - yk);             % 1 x K
                 dw2 = a1' * dz2;             % H x K
                 db2 = dz2;
-                dz1 = (dz2 * W2') .* backward(z1, a1, config.hidden_act, config.leaky_alpha); % 1 x H
+                dz1 = (dz2 * W2') .* backward(z1, a1, config.act1, config.leaky_alpha); % 1 x H
                 dw1 = xk' * dz1;             % p x H
                 db1 = dz1;
 
@@ -128,13 +130,13 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
                 Nb = size(Xb,1);
 
                 Z1b = Xb * W1 + b1;
-                A1b = forward(Z1b, config.hidden_act, config.leaky_alpha);
+                A1b = forward(Z1b, config.act1, config.leaky_alpha);
                 Z2b = A1b * W2 + b2;
                 A2b = softmax(Z2b);
 
                 dZ2b = (A2b - Yb) / Nb;
                 dW2 = A1b' * dZ2b; db2 = sum(dZ2b,1);
-                dZ1b = (dZ2b * W2') .* backward(Z1b, A1b, config.hidden_act, config.leaky_alpha);
+                dZ1b = (dZ2b * W2') .* backward(Z1b, A1b, config.act1, config.leaky_alpha);
                 dW1 = Xb' * dZ1b; db1 = sum(dZ1b,1);
 
                 V1 = config.mu * V1 - config.eta * dW1;
@@ -181,7 +183,7 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
     % R2 treino
     y_true_train = Train(:,end);
     Z1_tr = Xtrain * W1 + b1;
-    A1_tr = forward(Z1_tr, config.hidden_act, config.leaky_alpha);
+    A1_tr = forward(Z1_tr, config.act1, config.leaky_alpha);
     Z2_tr = A1_tr * W2 + b2;
     A2_tr = softmax(Z2_tr);
     [~, pred_train] = max(A2_tr, [], 2);
@@ -192,7 +194,7 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
 
     % Teste
     Z1t = Xtest * W1 + b1;
-    A1t = forward(Z1t, config.hidden_act, config.leaky_alpha);
+    A1t = forward(Z1t, config.act1, config.leaky_alpha);
     Z2t = A1t * W2 + b2;
     A2t = softmax(Z2t);
     [~, pred] = max(A2t, [], 2);
@@ -210,8 +212,8 @@ function [STATS, TX_OK, W1, W2, R2_train_mean, R2_test_mean, rec_mean, prec_mean
   R2_train_mean = mean(R2_train);
   R2_test_mean  = mean(R2_test);
 
-  fprintf('mlp1h: normalization: %s, hidden_act: %s, opt_variant: %s, gbds: %s, eta: %.3f, epochs: %d, batch_size: %d\n', ...
-    config.normalization, config.hidden_act, config.opt_variant, config.gbds, config.eta, config.epochs, config.batch_size);
+  fprintf('mlp1h: norm: %s, act1: %s, opt: %s, gd: %s, eta: %.4f, epochs: %d, batch_size: %d\n', ...
+    config.normalization, config.act1, config.opt_variant, config.gbds, config.eta, config.epochs, config.batch_size);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f,  R2_train: %.3f\n',  ...
     STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction
