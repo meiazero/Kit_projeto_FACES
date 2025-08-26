@@ -160,7 +160,7 @@ function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean, rec_mean, prec_
     % classification metrics for test set
     y_true_test = Test(:,end);
     y_pred_test = pred;
-    [rec(r), prec(r), f1(r)] = classification_metrics(y_true_test, y_pred_test);
+    % [rec(r), prec(r), f1(r)] = classification_metrics(y_true_test, y_pred_test);
     % accuracy
     TX_OK(r) = sum(pred == y_true_test) / size(Test,1) * 100;
     % Coeficiente de determinação (R^2) entre rótulos e predições (test)
@@ -173,14 +173,12 @@ function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean, rec_mean, prec_
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
   R2_train_mean = mean(R2_train);
   R2_test_mean  = mean(R2_test);
-  % summary of classification metrics
-  rec_mean  = mean(rec);
-  prec_mean = mean(prec);
-  f1_mean   = mean(f1);
 
   fprintf('mlp2h: normalization: %s, act1: %s, act2: %s, opt_variant: %s, eta: %.3f, epochs: %d\n', config.normalization, config.act1, config.act2, config.opt_variant, config.eta, config.epochs);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
-    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
+    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_train_mean, R2_test_mean);
+
+
 endfunction
 
 function A = forward(Z, act, alpha)
