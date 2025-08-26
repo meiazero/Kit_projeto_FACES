@@ -8,10 +8,10 @@ function [STATS, TX_OK, R2_train_mean, R2_test_mean] = nc(D, Nr, Ptrain, config)
   K = max(D(:,end));
   TX_OK = zeros(Nr,1);
   R2_train = zeros(Nr,1);
-  R2_test = zeros(Nr,1);
+  R2_test  = zeros(Nr,1);
   epsn = 1e-8;
 
-  % default normalization
+  % normalization variants (zscore, minmax01, minmax11, none, robust, l2, whiten)
   if ~isfield(config,'normalization'), config.normalization = 'zscore'; end
 
   for r = 1:Nr
@@ -23,74 +23,94 @@ function [STATS, TX_OK, R2_train_mean, R2_test_mean] = nc(D, Nr, Ptrain, config)
     Xtrain_raw = Train(:,1:p);
     Xtest_raw  = Test(:,1:p);
 
-    % Normalization
-    switch config.normalization
-      case 'zscore'
-        m = mean(Xtrain_raw,1); s = std(Xtrain_raw,0,1); s(s<epsn)=1;
-        Xtrain = (Xtrain_raw - m) ./ s;
-        Xtest  = (Xtest_raw  - m) ./ s;
-      case 'minmax01'
-        mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1); rng = mx - mn; rng(rng<epsn)=1;
-        Xtrain = (Xtrain_raw - mn) ./ rng;
-        Xtest  = (Xtest_raw  - mn) ./ rng;
-      case 'minmax11'
-        mn = min(Xtrain_raw,[],1); mx = max(Xtrain_raw,[],1); rng = mx - mn; rng(rng<epsn)=1;
-        Xtrain = 2*((Xtrain_raw - mn)./rng) - 1;
-        Xtest  = 2*((Xtest_raw  - mn)./rng) - 1;
-      otherwise
-        Xtrain = Xtrain_raw; Xtest = Xtest_raw;
-    end
+    [Xtrain, Xtest] = normalization(Xtrain_raw, Xtest_raw, config.normalization, epsn);
+
     Ytrain = Train(:,end);
     Ytest  = Test(:,end);
 
-    % Compute centroids
-    centroids = zeros(K, p);
+    % Centroides
+    centroids = zeros(K,p);
     for c = 1:K
-      Xc = Xtrain(Ytrain==c, :);
-      if isempty(Xc)
-        centroids(c,:) = zeros(1,p);
-      else
+      Xc = Xtrain(Ytrain==c,:);
+      if ~isempty(Xc)
         centroids(c,:) = mean(Xc,1);
       end
     end
 
-    % Classify
+    % Classificação (vetorizada)
+    % d2(i,c) = ||x_i - centroid_c||^2
+    % Implementação: (x^2) - 2 x*c' + (c^2)
+    Xtest_sq = sum(Xtest.^2,2);
+    C_sq = sum(centroids.^2,2)';
+    d2 = Xtest_sq + C_sq - 2*(Xtest*centroids');
+    [~, preds] = min(d2,[],2);
+
     M = size(Xtest,1);
-    preds = zeros(M,1);
-    for i = 1:M
-      x = Xtest(i,:);
+    TX_OK(r) = sum(preds == Ytest)/M * 100;
 
-      % Euclidean distances to centroids
-      d2 = sum((centroids - x).^2, 2);
-      [~, preds(i)] = min(d2);
-    end
+    % Predição treino
+    Xtrain_sq = sum(Xtrain.^2,2);
+    d2_tr = Xtrain_sq + C_sq - 2*(Xtrain*centroids');
+    [~, preds_train] = min(d2_tr,[],2);
 
-    TX_OK(r) = sum(preds == Ytest) / M * 100;
-    % --- Compute R2 on training data
-    Ytrain = Train(:,end);
-    Ntrain = size(Xtrain,1);
-    preds_train = zeros(Ntrain,1);
-    for i = 1:Ntrain
-      x_tr = Xtrain(i,:);
-      d2_tr = sum((centroids - x_tr).^2, 2);
-      [~, preds_train(i)] = min(d2_tr);
-    end
     SSres_train = sum((Ytrain - preds_train).^2);
     SStot_train = sum((Ytrain - mean(Ytrain)).^2);
-    R2_train(r) = 1 - SSres_train / SStot_train;
-    % --- Compute R2 on test predictions
-    y_true_test = Test(:,end);
-    y_pred_test = preds;
-    SSres_test = sum((y_true_test - y_pred_test).^2);
-    SStot_test = sum((y_true_test - mean(y_true_test)).^2);
-    R2_test(r) = 1 - SSres_test / SStot_test;
+    R2_train(r) = 1 - SSres_train / max(SStot_train,epsn);
+
+    SSres_test = sum((Ytest - preds).^2);
+    SStot_test = sum((Ytest - mean(Ytest)).^2);
+    R2_test(r) = 1 - SSres_test / max(SStot_test,epsn);
   end
 
   STATS = [mean(TX_OK) min(TX_OK) max(TX_OK) median(TX_OK) std(TX_OK)];
   R2_train_mean = mean(R2_train);
-  R2_test_mean = mean(R2_test);
+  R2_test_mean  = mean(R2_test);
 
   fprintf('nc: normalization: %s\n', config.normalization);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
     STATS(1), STATS(2), STATS(3), STATS(4), STATS(5), R2_test_mean, R2_train_mean);
 endfunction
+
+function [Xtrain, Xtest] = normalization(Xtr, Xte, mode, epsn)
+  switch mode
+    case 'zscore'
+      m = mean(Xtr,1); s = std(Xtr,0,1); s(s<epsn)=1;
+      Xtrain = (Xtr - m)./s; Xtest = (Xte - m)./s;
+    case 'minmax01'
+      mn = min(Xtr,[],1); mx = max(Xtr,[],1); rg = mx - mn; rg(rg<epsn)=1;
+      Xtrain = (Xtr - mn)./rg; Xtest = (Xte - mn)./rg;
+    case 'minmax11'
+      mn = min(Xtr,[],1); mx = max(Xtr,[],1); rg = mx - mn; rg(rg<epsn)=1;
+      Xtrain = 2*((Xtr - mn)./rg)-1; Xtest = 2*((Xte - mn)./rg)-1;
+    case 'robust'
+      med = median(Xtr,1);
+      q1 = prctile(Xtr,25,1); q3 = prctile(Xtr,75,1);
+      iqr = q3 - q1; iqr(iqr<epsn)=1;
+      Xtrain = (Xtr - med)./iqr; Xtest = (Xte - med)./iqr;
+    case 'maxabs'
+      ma = max(abs(Xtr),[],1); ma(ma<epsn)=1;
+      Xtrain = Xtr./ma; Xtest = Xte./ma;
+    case 'center'
+      m = mean(Xtr,1);
+      Xtrain = Xtr - m; Xtest = Xte - m;
+    case 'unitvar'
+      s = std(Xtr,0,1); s(s<epsn)=1;
+      Xtrain = Xtr./s; Xtest = Xte./s;
+    case 'l2sample'
+      nr = sqrt(sum(Xtr.^2,2)); nr(nr<epsn)=1;
+      Xtrain = Xtr./nr;
+      nr2 = sqrt(sum(Xte.^2,2)); nr2(nr2<epsn)=1;
+      Xtest = Xte./nr2;
+    case 'whiten'
+      m = mean(Xtr,1);
+      Xc = bsxfun(@minus,Xtr,m);
+      C = cov(Xc,1);
+      [V,S] = eig(C);
+      s = diag(S); s(s<epsn)=epsn;
+      W = V*diag(1./sqrt(s))*V';
+      Xtrain = Xc*W;
+      Xtest = bsxfun(@minus,Xte,m)*W;
+    otherwise
+      Xtrain = Xtr; Xtest = Xte;
+  end
+end

@@ -24,9 +24,9 @@ function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean, rec_mean, prec_
   % gradient descent strategy (sgd, batch-gd, mini-batch-gd)
   if ~isfield(config,'gbds'),          config.gbds = 'batch-gd'; end
 
-  if ~isfield(config,'batch_size'),    config.batch_size = 32; end
+  if ~isfield(config,'batch_size'),    config.batch_size = 16; end
   if ~isfield(config,'eta'),           config.eta = 0.003; end
-  if ~isfield(config,'epochs'),        config.epochs = 100; end
+  if ~isfield(config,'epochs'),        config.epochs = 1; end
   if ~isfield(config,'mu'),            config.mu = 0.9; end
   if ~isfield(config,'rho'),           config.rho = 0.9; end       % rmsprop
   if ~isfield(config,'eps_opt'),       config.eps_opt = 1e-8; end
@@ -240,10 +240,10 @@ function [STATS, TX_OK, W1, W2, W3, R2_train_mean, R2_test_mean, rec_mean, prec_
   R2_train_mean = mean(R2_train);
   R2_test_mean  = mean(R2_test);
 
-  fprintf('mlp2h: norm: %s, act1: %s, act2: %s, opt: %s, gd: %s, eta: %.4f, epochs: %d\n', ...
-    config.normalization, config.act1, config.act2, config.opt_variant, config.gbds, config.eta, config.epochs);
+  fprintf('mlp2h: norm: %s, act1: %s, act2: %s, opt: %s, gd: %s, eta: %.4f, epochs: %d, batch_size: %d\n', ...
+    config.normalization, config.act1, config.act2, config.opt_variant, config.gbds, config.eta, config.epochs, config.batch_size);
   fprintf('Stats - mean: %.3f, min: %.3f, max: %.3f, median: %.3f, std: %.3f, R2_test: %.3f, R2_train: %.3f\n', ...
-    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5),R2_test_mean,  R2_train_mean, );
+    STATS(1), STATS(2), STATS(3), STATS(4), STATS(5),R2_test_mean,  R2_train_mean);
 
   rec_mean = mean(rec); prec_mean = mean(prec); f1_mean = mean(f1);
 endfunction
